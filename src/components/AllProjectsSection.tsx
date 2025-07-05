@@ -2,7 +2,7 @@
 import { FC, useState, useMemo } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { ExternalLink, ArrowRight } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 
 const categories = ["All", "Web Development", "UI/UX Design", "E-commerce", "CMS"];
 
