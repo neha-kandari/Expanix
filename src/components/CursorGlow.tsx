@@ -38,7 +38,7 @@ export default function CursorGlow() {
   }, []);
 
   return (
-    <>
+    <div className="cursor-glow">
       <div
         ref={outerRef}
         className="pointer-events-none fixed z-[9999] left-0 top-0 w-[30px] h-[30px] rounded-full border border-white"
@@ -49,6 +49,6 @@ export default function CursorGlow() {
         className="pointer-events-none fixed z-[9999] left-0 top-0 w-[8px] h-[8px] rounded-full bg-white"
         style={{ transition: "none" }}
       />
-    </>
+    </div>
   );
 } 
