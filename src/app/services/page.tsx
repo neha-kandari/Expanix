@@ -1,11 +1,9 @@
 import ServiceDetailsSection from '../../components/ServiceDetailsSection';
-import CursorGlow from '../../components/CursorGlow';
 import ServiceSpline from '@/components/ServiceSpline';
 
 export default function ServicesPage() {
   return (
     <main className="relative min-h-screen w-full bg-black text-white overflow-hidden">
-      <CursorGlow />
       {/* Hero Text */}
       <div className="text-center pt-20 md:pt-28 pb-4 md:pb-8 relative z-10 px-4">
         <h1 className="text-3xl md:text-4xl font-bold mb-2">Scale Your Business at the</h1>
