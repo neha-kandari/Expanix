@@ -23,10 +23,12 @@ export default function ThreeJSHero() {
   const [loading, setLoading] = useState(true);
   const [deviceInfo, setDeviceInfo] = useState<any>(null);
 
+  // Detect device once
   useEffect(() => {
     setDeviceInfo(detectDeviceCapabilities());
   }, []);
 
+  // Setup scene
   useEffect(() => {
     if (!containerRef.current || !deviceInfo) return;
 
@@ -56,6 +58,9 @@ export default function ThreeJSHero() {
     renderer.setSize(container.clientWidth, container.clientHeight);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.shadowMap.enabled = false;
+    renderer.domElement.style.pointerEvents = 'auto';
+    renderer.domElement.style.touchAction = 'pan-y';
+    renderer.domElement.style.userSelect = 'none';
 
     container.appendChild(renderer.domElement);
     rendererRef.current = renderer;
@@ -65,23 +70,11 @@ export default function ThreeJSHero() {
     controls.enableZoom = false;
     controls.enablePan = false;
     controls.enableRotate = true;
+    controls.maxPolarAngle = Math.PI * 0.8;
+    controls.minPolarAngle = Math.PI * 0.2;
+    controls.maxAzimuthAngle = Math.PI / 6;
+    controls.minAzimuthAngle = -Math.PI / 6;
     controlsRef.current = controls;
-
-    // Rotation area limited to bottom 40% of screen on mobile
-    if (isMobile) {
-      renderer.domElement.addEventListener('touchstart', (e) => {
-        const touch = e.touches[0];
-        const rect = renderer.domElement.getBoundingClientRect();
-        const touchY = touch.clientY - rect.top;
-        const areaHeight = rect.height;
-        const lowerAreaThreshold = areaHeight * 0.6;
-        if (touchY < lowerAreaThreshold) {
-          controls.enableRotate = false;
-        } else {
-          controls.enableRotate = true;
-        }
-      });
-    }
 
     const animate = () => {
       if (sceneReady) {
@@ -100,6 +93,7 @@ export default function ThreeJSHero() {
     };
     window.addEventListener('resize', resize);
 
+    // Defer Spline scene loading to avoid UI blocking
     const deferredLoad = () => {
       if ('requestIdleCallback' in window) {
         requestIdleCallback(() => loadSpline(scene, camera, controls, renderer));
@@ -119,6 +113,7 @@ export default function ThreeJSHero() {
     };
   }, [deviceInfo]);
 
+  // Load Spline Scene
   const loadSpline = async (
     scene: THREE.Scene,
     camera: THREE.PerspectiveCamera,
@@ -132,6 +127,7 @@ export default function ThreeJSHero() {
       setSceneReady(true);
       setLoading(false);
 
+      // Position camera to fit the scene
       setTimeout(() => {
         scene.updateMatrixWorld(true);
         const box = new THREE.Box3().setFromObject(scene);
@@ -159,6 +155,7 @@ export default function ThreeJSHero() {
 
   return (
     <>
+      {/* Fallback hero or loading screen */}
       {loading && (
         <div
           style={{
@@ -182,6 +179,7 @@ export default function ThreeJSHero() {
         </div>
       )}
 
+      {/* 3D container */}
       <div
         ref={containerRef}
         style={{
@@ -190,9 +188,6 @@ export default function ThreeJSHero() {
           overflow: 'hidden',
           position: 'relative',
           zIndex: 1,
-          touchAction: 'auto', // allow scroll
-          pointerEvents: 'auto',
-          WebkitOverflowScrolling: 'touch',
         }}
       />
     </>
