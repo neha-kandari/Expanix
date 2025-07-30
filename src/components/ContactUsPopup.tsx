@@ -343,7 +343,7 @@ ${formData.name}
                 </button>
                 
                 <div className="text-center">
-                  <h2 className="text-2xl font-bold text-gray-100 mb-2">Get In Touch</h2>
+                  <h2 className="text-2xl font-bold text-gray-100 mb-2">Book Meet</h2>
                   <p className="text-gray-300">Let's discuss your project and bring your ideas to life!</p>
                 </div>
               </div>
