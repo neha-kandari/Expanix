@@ -1,35 +1,36 @@
-import React, { useRef, useEffect, useState, Suspense } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { Application } from '@splinetool/runtime';
 
+// Detect basic device performance
 const detectDeviceCapabilities = () => {
   const isMobile = /Mobi|Android/i.test(navigator.userAgent);
   const memory = (navigator as any).deviceMemory || 4;
-  const hardwareConcurrency = navigator.hardwareConcurrency || 4;
-  return { isMobile, memory, hardwareConcurrency };
+  const cores = navigator.hardwareConcurrency || 4;
+  return { isMobile, memory, cores };
 };
 
 export default function ThreeJSHero() {
   const containerRef = useRef<HTMLDivElement>(null);
-  const sceneRef = useRef<THREE.Scene | null>(null);
-  const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
+  const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const controlsRef = useRef<OrbitControls | null>(null);
+  const sceneRef = useRef<THREE.Scene | null>(null);
   const splineAppRef = useRef<Application | null>(null);
-  const [deviceCapabilities, setDeviceCapabilities] = useState<any>(null);
-  const [isSceneLoaded, setIsSceneLoaded] = useState(false);
 
+  const [sceneReady, setSceneReady] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [deviceInfo, setDeviceInfo] = useState<any>(null);
+
+  // Detect device once
   useEffect(() => {
-    const capabilities = detectDeviceCapabilities();
-    setDeviceCapabilities(capabilities);
-    requestIdleCallback(() => {
-      window.dispatchEvent(new Event('resize'));
-    });
+    setDeviceInfo(detectDeviceCapabilities());
   }, []);
 
+  // Setup scene
   useEffect(() => {
-    if (!containerRef.current || !deviceCapabilities) return;
+    if (!containerRef.current || !deviceInfo) return;
 
     const container = containerRef.current;
     const scene = new THREE.Scene();
@@ -44,22 +45,23 @@ export default function ThreeJSHero() {
     );
     cameraRef.current = camera;
 
-    const { isMobile, memory, hardwareConcurrency } = deviceCapabilities;
-    const isLowEndDevice = isMobile || memory <= 2 || hardwareConcurrency <= 2;
+    const { isMobile, memory, cores } = deviceInfo;
+    const lowEndDevice = isMobile || memory <= 2 || cores <= 2;
 
     const renderer = new THREE.WebGLRenderer({
-      antialias: !isLowEndDevice,
+      antialias: !lowEndDevice,
       alpha: true,
-      powerPreference: 'high-performance'
+      powerPreference: 'high-performance',
     });
 
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, isLowEndDevice ? 1 : 2));
+    renderer.setPixelRatio(lowEndDevice ? 1 : Math.min(window.devicePixelRatio, 1.5));
     renderer.setSize(container.clientWidth, container.clientHeight);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.shadowMap.enabled = false;
     renderer.domElement.style.pointerEvents = 'auto';
     renderer.domElement.style.touchAction = 'pan-y';
     renderer.domElement.style.userSelect = 'none';
+
     container.appendChild(renderer.domElement);
     rendererRef.current = renderer;
 
@@ -74,34 +76,45 @@ export default function ThreeJSHero() {
     controls.minAzimuthAngle = -Math.PI / 6;
     controlsRef.current = controls;
 
-    renderer.setAnimationLoop(() => {
-      if (isSceneLoaded) {
+    const animate = () => {
+      if (sceneReady) {
         controls.update();
         renderer.render(scene, camera);
       }
-    });
+      requestAnimationFrame(animate);
+    };
+    animate();
 
-    const handleResize = () => {
+    const resize = () => {
       if (!container || !camera || !renderer) return;
       camera.aspect = container.clientWidth / container.clientHeight;
       camera.updateProjectionMatrix();
       renderer.setSize(container.clientWidth, container.clientHeight);
     };
+    window.addEventListener('resize', resize);
 
-    window.addEventListener('resize', handleResize);
-    loadSplineScene(scene, camera, controls, renderer);
+    // Defer Spline scene loading to avoid UI blocking
+    const deferredLoad = () => {
+      if ('requestIdleCallback' in window) {
+        requestIdleCallback(() => loadSpline(scene, camera, controls, renderer));
+      } else {
+        setTimeout(() => loadSpline(scene, camera, controls, renderer), 200);
+      }
+    };
+    deferredLoad();
 
     return () => {
-      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('resize', resize);
       if (splineAppRef.current) splineAppRef.current.dispose();
-      renderer.dispose();
+      if (renderer) renderer.dispose();
       if (container && renderer.domElement) {
         container.removeChild(renderer.domElement);
       }
     };
-  }, [deviceCapabilities]);
+  }, [deviceInfo]);
 
-  const loadSplineScene = async (
+  // Load Spline Scene
+  const loadSpline = async (
     scene: THREE.Scene,
     camera: THREE.PerspectiveCamera,
     controls: OrbitControls,
@@ -111,9 +124,11 @@ export default function ThreeJSHero() {
     try {
       await app.load('https://prod.spline.design/2VoTq6B1iob8D37P/scene.splinecode');
       splineAppRef.current = app;
-      setIsSceneLoaded(true);
+      setSceneReady(true);
+      setLoading(false);
 
-      requestIdleCallback(() => {
+      // Position camera to fit the scene
+      setTimeout(() => {
         scene.updateMatrixWorld(true);
         const box = new THREE.Box3().setFromObject(scene);
         const center = new THREE.Vector3();
@@ -131,11 +146,50 @@ export default function ThreeJSHero() {
         controls.update();
         scene.position.set(0, 0, 0);
         renderer.render(scene, camera);
-      });
-    } catch (error) {
-      console.error('ThreeJSHero: Failed to load Spline scene:', error);
+      }, 100);
+    } catch (err) {
+      console.error('Failed to load Spline scene:', err);
+      setLoading(false);
     }
   };
 
-  return <div ref={containerRef} style={{ width: '100%', height: '100vh', overflow: 'hidden' }} />;
+  return (
+    <>
+      {/* Fallback hero or loading screen */}
+      {loading && (
+        <div
+          style={{
+            width: '100%',
+            height: '100vh',
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            backgroundColor: '#0f0f0f',
+            color: '#fff',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            fontSize: '1.5rem',
+            fontFamily: 'Arial, sans-serif',
+            zIndex: 10,
+            transition: 'opacity 0.5s ease-in-out',
+          }}
+        >
+          Preparing experience...
+        </div>
+      )}
+
+      {/* 3D container */}
+      <div
+        ref={containerRef}
+        style={{
+          width: '100%',
+          height: '100vh',
+          overflow: 'hidden',
+          position: 'relative',
+          zIndex: 1,
+        }}
+      />
+    </>
+  );
 } 
