@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { Application } from '@splinetool/runtime';
@@ -9,35 +9,36 @@ export default function ServiceSpline() {
   const sceneRef = useRef<THREE.Scene | null>(null);
   const cameraRef = useRef<THREE.OrthographicCamera | null>(null);
   const controlsRef = useRef<OrbitControls | null>(null);
-  const animationIdRef = useRef<number | null>(null);
   const splineAppRef = useRef<Application | null>(null);
+  const animationIdRef = useRef<number | null>(null);
+
+  const [isSceneLoaded, setIsSceneLoaded] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
     if (!containerRef.current) return;
 
     const container = containerRef.current;
+    const userAgent = navigator.userAgent || navigator.vendor;
+    const mobile = /android|iphone|ipad|mobile/i.test(userAgent);
+    setIsMobile(mobile);
 
-    const isLowEndDevice = () => {
-      return (
-        navigator.hardwareConcurrency <= 4 ||
-        (navigator as any).deviceMemory <= 2
-      );
-    };
+    const isLowEndDevice = () =>
+      (navigator.hardwareConcurrency || 4) <= 4 ||
+      ((navigator as any).deviceMemory || 4) <= 2;
 
-    const isMobile = /Mobi|Android/i.test(navigator.userAgent);
-    const pixelRatio = isLowEndDevice() || isMobile ? 1 : Math.min(window.devicePixelRatio, 2);
+    const pixelRatio = isLowEndDevice() || mobile ? 1 : Math.min(window.devicePixelRatio, 1.5);
     const antialias = !isLowEndDevice();
 
-    // Initialize Scene
+    // Set up scene and renderer
     const scene = new THREE.Scene();
     scene.background = new THREE.Color('#000000');
     sceneRef.current = scene;
 
-    // Camera - Reduced size for better performance on desktop
-    const scaleFactor = isMobile ? 1 : 0.7; // Reduce size by 30% on desktop
+    const scaleFactor = mobile ? 1 : 0.7;
     const width = container.clientWidth * scaleFactor;
     const height = container.clientHeight * scaleFactor;
-    
+
     const camera = new THREE.OrthographicCamera(
       width / -2,
       width / 2,
@@ -50,7 +51,6 @@ export default function ServiceSpline() {
     camera.quaternion.setFromEuler(new THREE.Euler(-0.64, 1.33, 0.63));
     cameraRef.current = camera;
 
-    // Renderer
     const renderer = new THREE.WebGLRenderer({ antialias, alpha: true });
     renderer.setSize(container.clientWidth, container.clientHeight);
     renderer.setPixelRatio(pixelRatio);
@@ -63,57 +63,54 @@ export default function ServiceSpline() {
     container.appendChild(renderer.domElement);
     rendererRef.current = renderer;
 
-    // Controls
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
     controls.dampingFactor = 0.1;
     controls.enableZoom = false;
     controls.enablePan = false;
-    controls.enableRotate = true; // Enable rotation for mouse interaction
+    controls.enableRotate = true;
     controls.maxPolarAngle = Math.PI * 0.8;
     controls.minPolarAngle = Math.PI * 0.2;
     controls.maxAzimuthAngle = Math.PI / 6;
     controls.minAzimuthAngle = -Math.PI / 6;
     controlsRef.current = controls;
 
-    // 🚀 Load Spline Animation Immediately
-    const app = new Application(renderer.domElement);
-    app
-      .load('https://prod.spline.design/0HhtDF4IAOrdc6FJ/scene.splinecode')
-      .then(() => {
-        splineAppRef.current = app;
-        console.log('Spline scene loaded');
-      })
-      .catch((error) => {
-        console.error('Spline loading failed:', error);
-      });
-
-    // Animate
+    // Animation Loop
     const animate = () => {
       controls.update();
       renderer.render(scene, camera);
       animationIdRef.current = requestAnimationFrame(animate);
     };
-    requestAnimationFrame(animate);
+    animate();
 
-    // Resize
+    // Resize Observer
     let resizeObserver: ResizeObserver | null = null;
     if ('ResizeObserver' in window) {
       resizeObserver = new ResizeObserver(() => {
         if (!camera || !renderer) return;
-        const currentScaleFactor = isMobile ? 1 : 0.7; // Same scale factor
-        const newWidth = container.clientWidth * currentScaleFactor;
-        const newHeight = container.clientHeight * currentScaleFactor;
-        
-        camera.left = newWidth / -2;
-        camera.right = newWidth / 2;
-        camera.top = newHeight / 2;
-        camera.bottom = newHeight / -2;
+        const currentScale = mobile ? 1 : 0.7;
+        const newW = container.clientWidth * currentScale;
+        const newH = container.clientHeight * currentScale;
+
+        camera.left = newW / -2;
+        camera.right = newW / 2;
+        camera.top = newH / 2;
+        camera.bottom = newH / -2;
         camera.updateProjectionMatrix();
         renderer.setSize(container.clientWidth, container.clientHeight);
       });
       resizeObserver.observe(container);
     }
+
+    // ✅ Defer Spline Load (to prevent initial lag)
+    const deferredSplineLoad = () => {
+      if ('requestIdleCallback' in window) {
+        requestIdleCallback(() => loadSplineScene(renderer));
+      } else {
+        setTimeout(() => loadSplineScene(renderer), 300);
+      }
+    };
+    deferredSplineLoad();
 
     // Cleanup
     return () => {
@@ -129,15 +126,51 @@ export default function ServiceSpline() {
     };
   }, []);
 
+  // Load Spline Scene
+  const loadSplineScene = async (renderer: THREE.WebGLRenderer) => {
+    try {
+      const app = new Application(renderer.domElement);
+      await app.load('https://prod.spline.design/0HhtDF4IAOrdc6FJ/scene.splinecode');
+      splineAppRef.current = app;
+      setIsSceneLoaded(true);
+      console.log('✅ Spline animation loaded.');
+    } catch (err) {
+      console.error('❌ Failed to load Spline:', err);
+    }
+  };
+
   return (
-    <div
-      ref={containerRef}
-      style={{
-        width: '100%',
-        height: '100%',
-        display: 'block',
-        background: 'transparent',
-      }}
-    />
+    <>
+      {!isSceneLoaded && (
+        <div
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: '100%',
+            backgroundColor: '#0a0a0a',
+            color: '#fff',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 99,
+            fontSize: '1rem',
+            fontFamily: 'sans-serif',
+          }}
+        >
+          Loading animation...
+        </div>
+      )}
+      <div
+        ref={containerRef}
+        style={{
+          width: '100%',
+          height: '100%',
+          display: 'block',
+          background: 'transparent',
+        }}
+      />
+    </>
   );
 } 
