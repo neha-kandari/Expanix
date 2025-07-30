@@ -106,22 +106,11 @@ export default function HeroSection({ children }: HeroSectionProps) {
           <StatsCounter />
         </div>
       </div>
-      {/* Spline or children go here */}
+      {/* Spline animation for all screen sizes */}
       {children && (
         <div className="absolute inset-0 w-full h-full z-10 flex items-center justify-center px-2 sm:px-4">
           <div className="w-full h-full max-w-full max-h-full flex items-center justify-center">
-            {/* Mobile GIF - show on small screens */}
-            <div className="block sm:hidden w-full h-full flex items-center justify-center">
-              <img 
-                src="/threshold-dark-ambient-ui.gif" 
-                alt="Ambient UI Animation" 
-                className="w-full h-full object-cover rounded-lg opacity-60"
-              />
-            </div>
-            {/* Responsive Spline container - hide on small screens */}
-            <div className="hidden sm:flex w-full h-full sm:w-full sm:h-full md:w-full md:h-full lg:w-full lg:h-full items-center justify-center">
-              {children}
-            </div>
+            {children}
           </div>
         </div>
       )}
